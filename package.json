@@ -1,0 +1,40 @@
+{
+  "name": "hanzi-learning-tool",
+  "version": "1.1.0",
+  "description": "汉字学习工具 - 小学生2500汉字学习系统（完整版）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "serve": "vite preview",
+    "server": "node server/app.js",
+    "start": "npm run build && npm run server",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
+    "clean-ports": "node scripts/port-cleanup.js",
+    "dev-clean": "npm run clean-ports && npm run dev",
+    "server-clean": "npm run clean-ports && npm run server",
+    "start-all": "concurrently \"npm run server\" \"npm run dev\"",
+    "start-all-clean": "npm run clean-ports && npm run start-all"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.2.0",
+    "csv-writer": "^1.6.0",
+    "element-plus": "^2.5.4",
+    "express": "^4.18.2",
+    "pinia": "^2.1.7",
+    "vue": "^3.4.15",
+    "vue-router": "^4.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "@vitejs/plugin-vue": "^5.0.3",
+    "concurrently": "^9.2.1",
+    "sass": "^1.92.1",
+    "terser": "^5.44.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.12",
+    "vue-tsc": "^2.2.12"
+  }
+}
