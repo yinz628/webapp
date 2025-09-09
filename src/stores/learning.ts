@@ -340,17 +340,28 @@ export const useLearningStore = defineStore('learning', () => {
     }
   }
 
-  // 统一的保存函数，同时保存到服务器和localStorage
+  // 统一的保存函数，优先保存到服务器，确保数据一致性
   async function saveData() {
-    // 立即保存到localStorage作为备份
-    saveToStorage()
-    
-    // 异步保存到服务器
-    if (currentUser.value) {
-      try {
-        await saveToServer()
-      } catch (error) {
-        console.error('保存到服务器失败，但已保存到本地:', error)
+    if (!currentUser.value) {
+      // 如果没有用户登录，只保存到localStorage
+      saveToStorage()
+      return
+    }
+
+    try {
+      // 首先尝试保存到服务器
+      await saveToServer()
+      // 服务器保存成功后，更新localStorage作为缓存
+      saveToStorage()
+      console.log('数据已同步到服务器和本地缓存')
+    } catch (error) {
+      // 服务器保存失败时，只保存到localStorage作为后备
+      console.warn('服务器保存失败，仅保存到本地缓存:', error)
+      saveToStorage()
+      
+      // 可选：通知用户数据同步问题
+      if (typeof window !== 'undefined' && window.ElMessage) {
+        window.ElMessage.warning('数据暂时保存在本地，请检查网络连接')
       }
     }
   }

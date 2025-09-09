@@ -63,72 +63,21 @@ async function ensureUserDataDir() {
   }
 }
 
-// 汉字转拼音函数（简化版）
-function chineseToPinyin(chinese) {
-  // 简化的汉字转拼音映射表（常用字）
-  const pinyinMap = {
-    '张': 'zhang', '王': 'wang', '李': 'li', '赵': 'zhao', '陈': 'chen',
-    '刘': 'liu', '杨': 'yang', '黄': 'huang', '周': 'zhou', '吴': 'wu',
-    '徐': 'xu', '孙': 'sun', '马': 'ma', '朱': 'zhu', '胡': 'hu',
-    '郭': 'guo', '何': 'he', '高': 'gao', '林': 'lin', '罗': 'luo',
-    '郑': 'zheng', '梁': 'liang', '谢': 'xie', '宋': 'song', '唐': 'tang',
-    '许': 'xu', '韩': 'han', '冯': 'feng', '邓': 'deng', '曹': 'cao',
-    '彭': 'peng', '曾': 'zeng', '萧': 'xiao', '田': 'tian', '董': 'dong',
-    '潘': 'pan', '袁': 'yuan', '于': 'yu', '蒋': 'jiang', '蔡': 'cai',
-    '余': 'yu', '杜': 'du', '叶': 'ye', '程': 'cheng', '苏': 'su',
-    '魏': 'wei', '吕': 'lv', '丁': 'ding', '任': 'ren', '沈': 'shen',
-    '姚': 'yao', '卢': 'lu', '姜': 'jiang', '崔': 'cui', '钟': 'zhong',
-    '谭': 'tan', '陆': 'lu', '汪': 'wang', '范': 'fan', '金': 'jin',
-    '石': 'shi', '廖': 'liao', '贾': 'jia', '夏': 'xia', '韦': 'wei',
-    '付': 'fu', '方': 'fang', '白': 'bai', '邹': 'zou', '孟': 'meng',
-    '熊': 'xiong', '秦': 'qin', '邱': 'qiu', '江': 'jiang', '尹': 'yin',
-    '薛': 'xue', '闫': 'yan', '段': 'duan', '雷': 'lei', '侯': 'hou',
-    '龙': 'long', '史': 'shi', '陶': 'tao', '黎': 'li', '贺': 'he',
-    '顾': 'gu', '毛': 'mao', '郝': 'hao', '龚': 'gong', '邵': 'shao',
-    '万': 'wan', '钱': 'qian', '严': 'yan', '覃': 'qin', '武': 'wu',
-    '戴': 'dai', '莫': 'mo', '孔': 'kong', '向': 'xiang', '汤': 'tang',
-    '小': 'xiao', '明': 'ming', '华': 'hua', '红': 'hong', '军': 'jun',
-    '强': 'qiang', '磊': 'lei', '洋': 'yang', '勇': 'yong', '艳': 'yan',
-    '娟': 'juan', '秀': 'xiu', '英': 'ying', '敏': 'min', '芳': 'fang',
-    '娜': 'na', '静': 'jing', '丽': 'li', '美': 'mei', '亚': 'ya',
-    '伟': 'wei', '峰': 'feng', '超': 'chao', '鹏': 'peng', '涛': 'tao',
-    '平': 'ping', '刚': 'gang', '桂': 'gui', '娇': 'jiao', '兰': 'lan',
-    '凤': 'feng', '洁': 'jie', '梅': 'mei', '琳': 'lin', '素': 'su',
-    '云': 'yun', '莲': 'lian', '真': 'zhen', '环': 'huan', '雪': 'xue',
-    '荣': 'rong', '爱': 'ai', '妹': 'mei', '霞': 'xia', '香': 'xiang',
-    '月': 'yue', '莺': 'ying', '媛': 'yuan', '艳': 'yan', '瑞': 'rui',
-    '凡': 'fan', '佳': 'jia', '嘉': 'jia', '琼': 'qiong', '勤': 'qin',
-    '珍': 'zhen', '贞': 'zhen', '莉': 'li', '桂': 'gui', '娣': 'di',
-    '叶': 'ye', '璧': 'bi', '璐': 'lu', '娅': 'ya', '琦': 'qi',
-    '晶': 'jing', '妍': 'yan', '茜': 'qian', '秋': 'qiu', '珊': 'shan',
-    '莎': 'sha', '锦': 'jin', '黛': 'dai', '青': 'qing', '倩': 'qian',
-    '婷': 'ting', '姣': 'jiao', '婉': 'wan', '娴': 'xian', '瑾': 'jin',
-    '颖': 'ying', '露': 'lu', '瑶': 'yao', '怡': 'yi', '婵': 'chan',
-    '雁': 'yan', '蓓': 'bei', '纨': 'wan', '仪': 'yi', '荷': 'he',
-    '丹': 'dan', '蓉': 'rong', '眉': 'mei', '君': 'jun', '琴': 'qin',
-    '蕊': 'rui', '薇': 'wei', '菁': 'jing', '梦': 'meng', '岚': 'lan',
-    '苑': 'yuan', '婕': 'jie', '馨': 'xin', '瑗': 'yuan', '琰': 'yan',
-    '韵': 'yun', '融': 'rong', '园': 'yuan', '艺': 'yi', '咏': 'yong',
-    '卿': 'qing', '聪': 'cong', '澜': 'lan', '纯': 'chun', '毓': 'yu',
-    '悦': 'yue', '昭': 'zhao', '冰': 'bing', '爽': 'shuang', '琬': 'wan',
-    '茗': 'ming', '羽': 'yu', '希': 'xi', '欣': 'xin', '飘': 'piao',
-    '育': 'yu', '滢': 'ying', '馥': 'fu', '筠': 'yun', '柔': 'rou',
-    '竹': 'zhu', '霭': 'ai', '凝': 'ning', '晓': 'xiao', '欢': 'huan',
-    '霄': 'xiao', '枫': 'feng', '芸': 'yun', '菲': 'fei', '寒': 'han',
-    '伊': 'yi', '亚': 'ya', '宜': 'yi', '可': 'ke', '姬': 'ji'
-  };
-  
-  let result = '';
-  for (let char of chinese) {
-    result += pinyinMap[char] || char.toLowerCase();
-  }
-  return result;
-}
+// 注意：原有的 chineseToPinyin 函数已移除，
+// 现在使用更安全的 Base64 编码策略生成用户文件名
 
-// 生成用户文件名
+// 生成用户文件名 - 使用安全编码确保唯一性和兼容性
 function generateUserFileName(name, studentId) {
-  const pinyin = chineseToPinyin(name);
-  return `${pinyin}_${studentId}.json`;
+  // 使用Base64编码处理用户名，确保支持所有Unicode字符
+  const safeName = Buffer.from(name, 'utf8')
+    .toString('base64')
+    .replace(/[/+=]/g, '') // 移除文件系统不安全的字符
+    .substring(0, 20); // 限制长度避免文件名过长
+  
+  // 清理学号，只保留字母数字和下划线
+  const safeStudentId = studentId.replace(/[^a-zA-Z0-9_]/g, '');
+  
+  return `user_${safeName}_${safeStudentId}.json`;
 }
 
 // API路由
