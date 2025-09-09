@@ -478,8 +478,27 @@ const startReview = () => {
 
 const generateReviewQuestions = () => {
   const { 复习数量, 复习范围, 检查类型 } = reviewSettings.value
-  const allRecords = Array.from(learningStore.learningRecords.values())
+  let selectedItems: any[] = []
+  let questions: QuizQuestion[] = []
   
+  if (复习范围 === '错字本') {
+    // 处理错字本复习
+    const errorBookChars = learningStore.getErrorBookCharacters()
+    selectedItems = errorBookChars.slice(0, 复习数量).map(char => ({
+      字符: char.汉字,
+      拼音: char.拼音,
+      isErrorBookItem: true
+    }))
+    
+    selectedItems.forEach((item, index) => {
+      const hanziInfo = learningStore.hanziData.find(h => h.汉字 === item.字符)
+      if (!hanziInfo) return
+      
+      generateQuestionForChar(hanziInfo, index, questions, 检查类型)
+    })
+  } else {
+    // 处理其他复习范围
+    const allRecords = Array.from(learningStore.learningRecords.values())
   let filteredRecords: any[] = []
   
   switch (复习范围) {
@@ -505,12 +524,20 @@ const generateReviewQuestions = () => {
   }
   
   const selectedRecords = filteredRecords.slice(0, 复习数量)
-  const questions: QuizQuestion[] = []
   
   selectedRecords.forEach((record, index) => {
     const hanziInfo = learningStore.hanziData.find(h => h.汉字 === record.字符)
     if (!hanziInfo) return
     
+        generateQuestionForChar(hanziInfo, index, questions, 检查类型)
+      })
+    }
+    
+    currentQuizQuestions.value = questions
+  }
+  
+  // 为指定汉字生成题目的辅助函数
+  const generateQuestionForChar = (hanziInfo: any, index: number, questions: any[], 检查类型: string) => {
     let questionType = 检查类型
     if (检查类型 === '混合模式') {
       questionType = Math.random() > 0.5 ? '拼音选汉字' : '汉字选拼音'
@@ -553,9 +580,6 @@ const generateReviewQuestions = () => {
         词语: [hanziInfo.词语1, hanziInfo.词语2, hanziInfo.词语3].filter(word => word && word.trim())
       })
     }
-  })
-  
-  currentQuizQuestions.value = questions
 }
 
 const resetQuizState = () => {
@@ -616,6 +640,15 @@ const selectAnswer = (answer: string) => {
   }
   
   stopTimer()
+  
+  // 如果答题正确，2秒后自动跳到下一题
+  if (isCurrentCorrect.value) {
+    setTimeout(() => {
+      if (answered.value) { // 确保还在答题状态，防止用户已经手动点击了下一题
+        nextQuestion()
+      }
+    }, 2000)
+  }
 }
 
 const getCharacterFromQuestion = () => {

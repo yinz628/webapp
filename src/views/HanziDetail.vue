@@ -31,6 +31,12 @@
             <el-option label="未学习" value="未学习" />
           </el-select>
 
+          <el-select v-model="errorBookFilter" placeholder="错题本筛选" clearable @change="handleFilter">
+            <el-option label="全部" value="" />
+            <el-option label="错题本汉字" value="inErrorBook" />
+            <el-option label="非错题本汉字" value="notInErrorBook" />
+          </el-select>
+
           <el-button @click="resetFilters">重置筛选</el-button>
         </div>
       </div>
@@ -134,6 +140,34 @@
             </template>
           </el-table-column>
 
+          <el-table-column label="错题本状态" width="160">
+            <template #default="{ row }">
+              <div v-if="row.errorBookInfo" class="error-book-info">
+                <div class="error-book-header">
+                  <el-tag type="danger" size="small" class="error-book-tag">
+                    <el-icon><Warning /></el-icon>
+                    错题本
+                  </el-tag>
+                </div>
+                <div class="error-book-details">
+                  <div class="error-detail-item">
+                    <span class="label">错误次数:</span>
+                    <span class="value">{{ row.errorBookInfo.errorCount }}次</span>
+                  </div>
+                  <div class="error-detail-item">
+                    <span class="label">来源:</span>
+                    <span class="value">{{ getErrorSourceText(row.errorBookInfo.source) }}</span>
+                  </div>
+                  <div class="error-detail-item">
+                    <span class="label">最后错误:</span>
+                    <span class="value">{{ formatDate(row.errorBookInfo.lastErrorDate) }}</span>
+                  </div>
+                </div>
+              </div>
+              <span v-else class="no-error-book">未在错题本中</span>
+            </template>
+          </el-table-column>
+
           <el-table-column label="操作" width="120" fixed="right">
             <template #default="{ row }">
               <div v-if="row.editing" class="edit-actions">
@@ -176,15 +210,17 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Search, Warning } from '@element-plus/icons-vue'
 import { useLearningStore } from '@/stores/learning'
 import { hanziApi, type HanziData, type UpdateHanziData } from '@/services/hanziApi'
-import type { LearningRecord } from '@/types'
+import type { LearningRecord, ErrorBookItem } from '@/types'
 
 // 扩展HanziData类型以包含编辑状态和学习记录
 interface ExtendedHanziData extends HanziData {
   editing?: boolean
   saving?: boolean
   learningRecord?: LearningRecord
+  errorBookInfo?: ErrorBookItem
   editData?: UpdateHanziData
 }
 
@@ -195,6 +231,7 @@ const loading = ref(false)
 const hanziList = ref<ExtendedHanziData[]>([])
 const searchKeyword = ref('')
 const masteryFilter = ref('')
+const errorBookFilter = ref('')
 const currentPage = ref(1)
 const pageSize = ref(50)
 
@@ -222,6 +259,19 @@ const filteredHanziList = computed(() => {
     })
   }
 
+  // 错题本过滤
+  if (errorBookFilter.value) {
+    filtered = filtered.filter(hanzi => {
+      const inErrorBook = !!hanzi.errorBookInfo
+      if (errorBookFilter.value === 'inErrorBook') {
+        return inErrorBook
+      } else if (errorBookFilter.value === 'notInErrorBook') {
+        return !inErrorBook
+      }
+      return true
+    })
+  }
+
   return filtered
 })
 
@@ -237,12 +287,14 @@ const loadHanziData = async () => {
   try {
     const response = await hanziApi.getAllHanzi()
     if (response.success && response.data) {
-      // 合并汉字数据和学习记录
+      // 合并汉字数据、学习记录和错题本信息
       hanziList.value = response.data.map(hanzi => {
         const learningRecord = learningStore.learningRecords.get(hanzi.汉字)
+        const errorBookInfo = learningStore.errorBook.get(hanzi.汉字)
         return {
           ...hanzi,
           learningRecord,
+          errorBookInfo,
           editing: false,
           saving: false
         }
@@ -303,6 +355,7 @@ const handleFilter = () => {
 const resetFilters = () => {
   searchKeyword.value = ''
   masteryFilter.value = ''
+  errorBookFilter.value = ''
   currentPage.value = 1
 }
 
@@ -327,6 +380,36 @@ const getMasteryTagType = (mastery?: string) => {
 const getAccuracyRate = (record: LearningRecord) => {
   if (record.检查次数 === 0) return 0
   return Math.round((record.正确次数 / record.检查次数) * 100)
+}
+
+const getErrorSourceText = (source: string) => {
+  const sourceMap: { [key: string]: string } = {
+    'diagnostic': '诊断测试',
+    'learning': '学习练习',
+    'review': '复习练习'
+  }
+  return sourceMap[source] || '未知来源'
+}
+
+const formatDate = (dateString: string) => {
+  if (!dateString) return '-'
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffTime = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+  
+  if (diffDays === 0) {
+    return '今天'
+  } else if (diffDays === 1) {
+    return '昨天'
+  } else if (diffDays < 7) {
+    return `${diffDays}天前`
+  } else {
+    return date.toLocaleDateString('zh-CN', {
+      month: 'short',
+      day: 'numeric'
+    })
+  }
 }
 
 // 生命周期
@@ -453,6 +536,45 @@ onMounted(() => {
   }
   
   .no-stats {
+    font-size: 12px;
+    color: #999;
+  }
+
+  .error-book-info {
+    .error-book-header {
+      margin-bottom: 6px;
+      
+      .error-book-tag {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        
+        .el-icon {
+          font-size: 12px;
+        }
+      }
+    }
+    
+    .error-book-details {
+      .error-detail-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2px;
+        font-size: 11px;
+        
+        .label {
+          color: #666;
+        }
+        
+        .value {
+          color: #F56C6C;
+          font-weight: 500;
+        }
+      }
+    }
+  }
+  
+  .no-error-book {
     font-size: 12px;
     color: #999;
   }

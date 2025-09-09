@@ -246,7 +246,7 @@ app.post('/api/user/:fileName/errorbook', async (req, res) => {
   }
 });
 
-// 加载错字本数据
+// 加载错字本数据（保留用于向后兼容）
 app.get('/api/user/:fileName/errorbook', async (req, res) => {
   try {
     const { fileName } = req.params;
@@ -267,6 +267,77 @@ app.get('/api/user/:fileName/errorbook', async (req, res) => {
   } catch (error) {
     console.error('Error loading error book:', error);
     res.status(500).json({ error: '加载错字本失败' });
+  }
+});
+
+// 迁移用户数据：合并分离的错字本文件到主用户文件
+app.post('/api/user/:fileName/migrate', async (req, res) => {
+  try {
+    const { fileName } = req.params;
+    const baseFileName = fileName.replace('.json', '');
+    
+    // 主用户数据文件路径
+    const mainUserFilePath = path.join(USER_DATA_DIR, fileName);
+    
+    // 错字本文件路径
+    const errorBookFileName = `${baseFileName}_errorbook.json`;
+    const errorBookFilePath = path.join(USER_DATA_DIR, errorBookFileName);
+    
+    // 检查主用户文件是否存在
+    if (!await fs.access(mainUserFilePath).then(() => true).catch(() => false)) {
+      return res.status(404).json({ error: '用户数据文件不存在' });
+    }
+    
+    // 读取主用户数据
+    const mainUserContent = await fs.readFile(mainUserFilePath, 'utf8');
+    let userData = JSON.parse(mainUserContent);
+    
+    // 检查是否已经包含错字本数据
+    if (userData.errorBook) {
+      return res.json({ 
+        success: true, 
+        message: '用户数据已经包含错字本，无需迁移',
+        merged: false 
+      });
+    }
+    
+    // 尝试读取分离的错字本文件
+    let errorBookData = [];
+    try {
+      const errorBookContent = await fs.readFile(errorBookFilePath, 'utf8');
+      errorBookData = JSON.parse(errorBookContent);
+      console.log(`找到错字本文件，包含 ${errorBookData.length} 个条目`);
+    } catch (error) {
+      console.log('未找到分离的错字本文件，使用空数组');
+    }
+    
+    // 将错字本数据合并到主用户数据中
+    userData.errorBook = errorBookData;
+    
+    // 保存合并后的用户数据
+    await fs.writeFile(mainUserFilePath, JSON.stringify(userData, null, 2), 'utf8');
+    
+    // 如果存在旧的错字本文件，将其重命名为备份文件
+    if (errorBookData.length > 0) {
+      const backupPath = `${errorBookFilePath}.backup`;
+      try {
+        await fs.rename(errorBookFilePath, backupPath);
+        console.log(`已将旧错字本文件备份为: ${backupPath}`);
+      } catch (error) {
+        console.log('备份旧错字本文件失败:', error);
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `成功合并 ${errorBookData.length} 个错字本条目到主用户数据`,
+      merged: true,
+      errorBookCount: errorBookData.length
+    });
+    
+  } catch (error) {
+    console.error('Error migrating user data:', error);
+    res.status(500).json({ error: '数据迁移失败' });
   }
 });
 

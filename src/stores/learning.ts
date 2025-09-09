@@ -235,10 +235,44 @@ export const useLearningStore = defineStore('learning', () => {
         favoriteChars.value = new Set(userData.favoriteChars)
       }
 
-      // 加载错字本
+      // 加载错字本数据（从主用户数据中）
+      if (userData.errorBook && Array.isArray(userData.errorBook)) {
+        errorBook.value.clear()
+        userData.errorBook.forEach(({ key, value }: { key: string, value: ErrorBookItem }) => {
+          errorBook.value.set(key, value)
+        })
+        console.log('从主用户数据加载错字本完成')
+      } else {
+        // 如果主数据中没有错字本数据，尝试迁移分离的错字本文件
+        try {
+          console.log('检测到用户数据中缺少错字本，尝试自动迁移...')
+          const migrationResult = await userApi.migrateUserData(currentUser.value!.fileName)
+          
+          if (migrationResult.merged && migrationResult.errorBookCount! > 0) {
+            console.log(`成功迁移 ${migrationResult.errorBookCount} 个错字本条目`)
+                         // 迁移成功，提示用户刷新以获取最新数据
+             if (typeof window !== 'undefined' && window.ElMessage) {
+               window.ElMessage.success(`成功迁移 ${migrationResult.errorBookCount} 个错字本条目，请刷新页面查看最新数据`)
+             }
+             console.log('数据迁移完成，建议刷新页面')
+          } else {
+            console.log('无需迁移或迁移失败，使用空的错字本')
+          }
+        } catch (error) {
+          console.log('自动迁移失败，尝试从分离文件直接加载:', error)
+          // 如果迁移失败，回退到旧的加载方式
+          try {
       await loadErrorBookFromStorage()
+            console.log('从分离的错字本文件加载数据完成（向后兼容）')
+            // 加载完成后立即保存到主用户数据中
+            saveData()
+          } catch (fallbackError) {
+            console.log('没有找到旧的错字本文件，使用空的错字本')
+          }
+        }
+      }
 
-
+      console.log('从服务器加载用户数据完成')
     } catch (error) {
       console.error('加载用户数据失败:', error)
       throw error
@@ -259,6 +293,9 @@ export const useLearningStore = defineStore('learning', () => {
         recordsObject[key] = value
       })
 
+      // 转换错字本数据为普通对象
+      const errorBookArray = Array.from(errorBook.value.entries()).map(([key, value]) => ({ key, value }))
+
       const userData = {
         userInfo: {
           name: currentUser.value.name,
@@ -270,6 +307,7 @@ export const useLearningStore = defineStore('learning', () => {
         settings: settings.value,
         reviewSettings: reviewSettings.value,
         favoriteChars: Array.from(favoriteChars.value),
+        errorBook: errorBookArray, // 添加错字本数据到主用户数据中
         appSettings: {
           themeColor: localStorage.getItem('themeColor') || 'blue',
           fontSize: localStorage.getItem('fontSize') || 'normal',
@@ -330,6 +368,16 @@ export const useLearningStore = defineStore('learning', () => {
         favoriteChars.value = new Set(favoritesArray)
       }
 
+      // 加载错字本数据
+      const savedErrorBook = localStorage.getItem('errorBook')
+      if (savedErrorBook) {
+        const errorBookArray = JSON.parse(savedErrorBook)
+        errorBook.value.clear()
+        errorBookArray.forEach(({ key, value }: { key: string, value: ErrorBookItem }) => {
+          errorBook.value.set(key, value)
+        })
+      }
+
       // 加载当前用户
       const savedUser = localStorage.getItem('currentUser')
       if (savedUser) {
@@ -384,6 +432,10 @@ export const useLearningStore = defineStore('learning', () => {
       
       // 保存收藏汉字
       localStorage.setItem('favoriteChars', JSON.stringify(Array.from(favoriteChars.value)))
+      
+      // 保存错字本数据
+      const errorBookArray = Array.from(errorBook.value.entries()).map(([key, value]) => ({ key, value }))
+      localStorage.setItem('errorBook', JSON.stringify(errorBookArray))
     } catch (error) {
       console.error('保存到本地存储失败:', error)
     }
@@ -908,14 +960,14 @@ export const useLearningStore = defineStore('learning', () => {
       errorBook.value.set(key, newItem)
     }
     
-    // 保存到本地存储
-    saveErrorBookToStorage()
+    // 保存到主用户数据中（不再使用单独的错字本文件）
+    saveData()
   }
 
   // 从错字本移除汉字
   function removeFromErrorBook(character: string) {
     errorBook.value.delete(character)
-    saveErrorBookToStorage()
+    saveData() // 保存到主用户数据中
   }
 
   // 获取错字本汉字列表

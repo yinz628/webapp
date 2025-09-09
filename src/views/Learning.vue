@@ -428,17 +428,33 @@
         
         <!-- 错题回顾 -->
         <div v-if="wrongAnswers.length > 0" class="wrong-answers-section">
-          <h3>📋 错题回顾</h3>
+          <h3>❌ 错题回顾 ({{ wrongAnswers.length }}题)</h3>
           <div class="wrong-answers-list">
             <div 
               v-for="wrong in wrongAnswers" 
               :key="wrong.questionId"
               class="wrong-answer-item"
             >
+              <!-- 汉字显示 -->
+              <div v-if="wrong.character" class="wrong-character">
+                <span class="character-display">{{ wrong.character }}</span>
+              </div>
+              
+              <!-- 题目描述 -->
               <div class="wrong-question">{{ wrong.question }}</div>
+              
+              <!-- 答案对比 -->
               <div class="wrong-details">
-                <span class="your-answer">你的答案: {{ wrong.userAnswer }}</span>
-                <span class="correct-answer">正确答案: {{ wrong.correctAnswer }}</span>
+                <div class="answer-comparison">
+                  <span class="your-answer">
+                    <el-icon><Close /></el-icon>
+                    你的答案: {{ wrong.userAnswer || '未作答' }}
+                  </span>
+                  <span class="correct-answer">
+                    <el-icon><Check /></el-icon>
+                    正确答案: {{ wrong.correctAnswer }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -603,6 +619,18 @@
           
           <div class="question-info" v-if="currentQuestion.词语?.length">
             <p><strong>相关词语：</strong>{{ currentQuestion.词语.join('、') }}</p>
+          </div>
+          
+          <!-- 诊断模式下的手动下一题按钮（错误时显示） -->
+          <div v-if="showAnswer && !lastAnswerCorrect" class="diagnostic-next-actions">
+            <el-button 
+              type="primary" 
+              size="large"
+              @click="handleDiagnosticNextQuestion"
+            >
+              <el-icon><ArrowRight /></el-icon>
+              {{ currentQuestionIndex < currentQuizQuestions.length - 1 ? '下一题' : '完成诊断' }}
+            </el-button>
           </div>
         </div>
       </div>
@@ -787,6 +815,18 @@
           <div v-if="currentQuestion.词语?.length" class="question-words">
             <strong>词语：</strong>{{ currentQuestion.词语.join('、') }}
           </div>
+          
+          <!-- 诊断式复习模式下的手动下一题按钮（错误时显示） -->
+          <div v-if="showAnswer && !lastAnswerCorrect" class="diagnostic-next-actions">
+            <el-button 
+              type="primary" 
+              size="large"
+              @click="handleDiagnosticNextQuestion"
+            >
+              <el-icon><ArrowRight /></el-icon>
+              {{ currentQuestionIndex < currentQuizQuestions.length - 1 ? '下一题' : '完成复习' }}
+            </el-button>
+          </div>
         </div>
       </div>
     </div>
@@ -862,6 +902,9 @@ const selectedCharsCount = computed(() => {
   
   if (range === '全新汉字') {
     const available = newCharsCount.value
+    return Math.min(tempSettings.value.学习数量, available)
+  } else if (range === '错字本') {
+    const available = errorBookCount.value
     return Math.min(tempSettings.value.学习数量, available)
   } else if (range === '自定义范围') {
     const 起始 = tempSettings.value.起始序号 || 1
@@ -942,12 +985,33 @@ const wrongAnswers = computed(() => {
   return quizResults.value
     .filter(result => !result.isCorrect)
     .map(result => {
+      // 尝试从题目列表中找到对应题目
       const question = currentQuizQuestions.value.find(q => q.id === result.questionId)
+      
+      // 如果找到题目，使用题目描述；否则根据存储的信息构建题目描述
+      let questionText = ''
+      if (question?.question) {
+        questionText = question.question
+      } else if (result.character) {
+        // 根据答案类型判断题目类型
+        const isHanziAnswer = /^[\u4e00-\u9fff]$/.test(result.correctAnswer)
+        if (isHanziAnswer) {
+          // 正确答案是汉字，说明题目是 拼音选汉字
+          questionText = `选择拼音对应的汉字： ${result.character}`
+        } else {
+          // 正确答案是拼音，说明题目是 汉字选拼音  
+          questionText = `选择汉字"${result.character}"的正确拼音：`
+        }
+      } else {
+        questionText = '题目信息缺失'
+      }
+      
       return {
         questionId: result.questionId,
-        question: question?.question || '',
+        question: questionText,
         userAnswer: result.userAnswer,
-        correctAnswer: result.correctAnswer
+        correctAnswer: result.correctAnswer,
+        character: result.character || '' // 添加字符信息方便显示
       }
     })
 })
@@ -1062,6 +1126,15 @@ const submitAnswer = () => {
     type: isCorrect ? 'success' : 'error',
     message: isCorrect ? '回答正确！' : '回答错误'
   })
+  
+  // 如果答题正确，2秒后自动跳到下一题
+  if (isCorrect) {
+    setTimeout(() => {
+      if (showAnswer.value) { // 确保还在显示答案状态，防止用户已经手动点击了下一题
+        nextQuestion()
+      }
+    }, 2000)
+  }
 }
 
 const nextQuestion = () => {
@@ -1292,11 +1365,10 @@ const handleDiagnosticAnswer = (answer: string) => {
     duration: isCorrect ? 1500 : 3500
   })
   
-  // 根据正确性设置不同的显示时间
-  const displayTime = isCorrect ? 1500 : 3500 // 正确：1.5秒，错误：3.5秒
-  
-  // 处理答题后的逻辑
+  // 如果答题正确，2秒后自动跳到下一题；如果错误，需要手动点击
+  if (isCorrect) {
   setTimeout(() => {
+      if (showAnswer.value) { // 确保还在显示答案状态
     showAnswer.value = false
     selectedAnswer.value = ''
     
@@ -1321,7 +1393,40 @@ const handleDiagnosticAnswer = (answer: string) => {
         learningStore.currentPhase = 'statistics'
       }
     }
-  }, displayTime) // 根据正确性显示不同时间
+      }
+    }, 2000) // 正确答案2秒后自动跳转
+  }
+  // 错误答案不自动跳转，需要用户手动点击下一题
+}
+
+// 诊断模式手动下一题
+const handleDiagnosticNextQuestion = () => {
+  const phase = currentPhase.value
+  
+  showAnswer.value = false
+  selectedAnswer.value = ''
+  
+  if (phase === 'diagnostic') {
+    // 诊断阶段：进入下一题或完成诊断
+    if (currentQuestionIndex.value < currentQuizQuestions.value.length - 1) {
+      learningStore.nextQuestion()
+      answerStartTime.value = Date.now()
+      startTimer()
+    } else {
+      // 诊断完成，分析结果
+      learningStore.completeDiagnosticAnalysis()
+    }
+  } else if (phase === 'diagnostic-review') {
+    // 诊断复习阶段
+    if (currentQuestionIndex.value < currentQuizQuestions.value.length - 1) {
+      learningStore.nextQuestion()
+      answerStartTime.value = Date.now()
+      startTimer()
+    } else {
+      // 复习完成，显示统计
+      learningStore.currentPhase = 'statistics'
+    }
+  }
 }
 
 // 返回首页
@@ -1764,24 +1869,58 @@ onMounted(() => {
     background: rgba(245, 108, 108, 0.05);
     border-radius: 8px;
     border-left: 4px solid #F56C6C;
+      
+      .wrong-character {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 12px;
+        
+        .character-display {
+          font-size: 24px;
+          font-weight: bold;
+          color: #333;
+          padding: 8px 12px;
+          background: rgba(255, 255, 255, 0.8);
+          border-radius: 6px;
+          border: 2px solid #E6E8EB;
+        }
+      }
     
     .wrong-question {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 8px;
+        font-size: 16px;
+        font-weight: 500;
+        margin-bottom: 12px;
+        color: #666;
+        text-align: center;
     }
     
     .wrong-details {
+        .answer-comparison {
       display: flex;
-      gap: 20px;
+          flex-direction: column;
+          gap: 8px;
+          
+          .your-answer, .correct-answer {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            border-radius: 6px;
       font-size: 14px;
+            font-weight: 500;
+          }
       
       .your-answer {
+            background: rgba(245, 108, 108, 0.1);
         color: #F56C6C;
+            border: 1px solid rgba(245, 108, 108, 0.3);
       }
       
       .correct-answer {
+            background: rgba(103, 194, 58, 0.1);
         color: #67C23A;
+            border: 1px solid rgba(103, 194, 58, 0.3);
+          }
       }
     }
   }
@@ -1849,6 +1988,19 @@ onMounted(() => {
 }
 
 // === 诊断相关样式 ===
+
+.diagnostic-next-actions {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+  text-align: center;
+
+  .el-button {
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 500;
+  }
+}
 
 .diagnostic-settings-phase, .diagnostic-result-phase {
   .settings-card, .results-card {

@@ -79,7 +79,7 @@ class UserApiService {
     })
   }
 
-  // 加载错字本数据
+  // 加载错字本数据（保留用于向后兼容）
   async loadErrorBook(fileName: string): Promise<any> {
     try {
       return await this.request(`/user/${fileName}/errorbook`)
@@ -87,6 +87,13 @@ class UserApiService {
       // 错字本文件可能不存在，返回空数组
       return []
     }
+  }
+
+  // 迁移用户数据：合并分离的错字本文件到主用户文件
+  async migrateUserData(fileName: string): Promise<{ success: boolean; merged: boolean; errorBookCount?: number; message?: string }> {
+    return this.request(`/user/${fileName}/migrate`, {
+      method: 'POST',
+    })
   }
 }
 
