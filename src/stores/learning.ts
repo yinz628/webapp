@@ -251,8 +251,8 @@ export const useLearningStore = defineStore('learning', () => {
           if (migrationResult.merged && migrationResult.errorBookCount! > 0) {
             console.log(`成功迁移 ${migrationResult.errorBookCount} 个错字本条目`)
                          // 迁移成功，提示用户刷新以获取最新数据
-             if (typeof window !== 'undefined' && window.ElMessage) {
-               window.ElMessage.success(`成功迁移 ${migrationResult.errorBookCount} 个错字本条目，请刷新页面查看最新数据`)
+             if (typeof window !== 'undefined' && (window as any).ElMessage) {
+               (window as any).ElMessage.success(`成功迁移 ${migrationResult.errorBookCount} 个错字本条目，请刷新页面查看最新数据`)
              }
              console.log('数据迁移完成，建议刷新页面')
           } else {
@@ -408,8 +408,8 @@ export const useLearningStore = defineStore('learning', () => {
       saveToStorage()
       
       // 可选：通知用户数据同步问题
-      if (typeof window !== 'undefined' && window.ElMessage) {
-        window.ElMessage.warning('数据暂时保存在本地，请检查网络连接')
+      if (typeof window !== 'undefined' && (window as any).ElMessage) {
+        (window as any).ElMessage.warning('数据暂时保存在本地，请检查网络连接')
       }
     }
   }
