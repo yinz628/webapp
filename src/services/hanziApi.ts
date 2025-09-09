@@ -24,7 +24,7 @@ export interface ApiResponse<T> {
   total?: number
 }
 
-const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:3001' : ''
+const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:3001' : 'http://localhost:3001'
 
 class HanziApiService {
   private async request<T>(url: string, options: RequestInit = {}): Promise<T> {
